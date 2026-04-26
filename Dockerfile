@@ -38,4 +38,4 @@ COPY package.json package-lock.json ./
 
 EXPOSE 3001
 
-CMD ["node", "dist/index.js"]
+CMD ["sh", "-c", "npm run prisma:deploy && node dist/index.js"]

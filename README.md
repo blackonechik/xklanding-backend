@@ -41,6 +41,9 @@ Run the API:
 docker run --env-file .env -p 3001:3001 xksite-backend
 ```
 
+The API image runs `prisma migrate deploy` before `node dist/index.js`, so the
+`payments` table is created automatically on container start.
+
 Run Prisma migrations from the same Dockerfile:
 
 ```bash
