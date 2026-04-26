@@ -8,7 +8,7 @@ export type Product = {
 export const products: Product[] = [
   {
     id: 'smp-pass',
-    name: 'Проходка на XK SMP',
+    name: 'Проходка на XK HARDCORE',
     description: 'Доступ к приватному SMP и whitelist после подтверждения.',
     amountRub: 200,
   },

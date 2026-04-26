@@ -1,6 +1,6 @@
 # XK Site Backend
 
-Hono API for XK SMP payments. PostgreSQL stores payment orders, and the YooMoney
+Hono API for XK HARDCORE payments. PostgreSQL stores payment orders, and the YooMoney
 integration is prepared as a stub provider until real credentials are connected.
 
 ## Setup
@@ -71,5 +71,5 @@ docker run --env-file .env xksite-backend-migrate
 
 Available products:
 
-- `smp-pass` — проходка на XK SMP, `200 ₽`.
+- `smp-pass` — проходка на XK HARDCORE, `200 ₽`.
 - `life` — дополнительная RP-жизнь, `200 ₽`.
