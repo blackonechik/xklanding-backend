@@ -1,0 +1,24 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Payment {
+  id                String   @id @default(uuid()) @db.Uuid
+  nickname          String
+  productId         String   @map("product_id")
+  productName       String   @map("product_name")
+  amountRub         Int      @map("amount_rub")
+  status            String
+  provider          String   @default("yoomoney")
+  providerPaymentId String?  @map("provider_payment_id")
+  confirmationUrl   String   @map("confirmation_url")
+  metadata          Json     @default("{}")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("payments")
+}
