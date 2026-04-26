@@ -13,6 +13,7 @@ COPY src ./src
 
 RUN npm run prisma:generate
 RUN npm run build
+RUN test -f dist/index.js
 
 FROM build AS migrate
 
