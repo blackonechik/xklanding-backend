@@ -13,12 +13,31 @@ model Payment {
   productName       String   @map("product_name")
   amountRub         Int      @map("amount_rub")
   status            String
-  provider          String   @default("yoomoney")
+  provider          String   @default("yookassa")
   providerPaymentId String?  @map("provider_payment_id")
   confirmationUrl   String   @map("confirmation_url")
   metadata          Json     @default("{}")
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  lifePurchaseLog   LifePurchaseLog?
 
   @@map("payments")
+}
+
+model LifePurchaseLog {
+  id                String   @id @default(uuid()) @db.Uuid
+  orderId           String   @unique @map("order_id") @db.Uuid
+  paymentId         String   @unique @map("payment_id") @db.Uuid
+  providerPaymentId String   @map("provider_payment_id")
+  playerUuid        String   @map("player_uuid")
+  playerName        String   @map("player_name")
+  productId         String   @map("product_id")
+  livesDelta        Int      @map("lives_delta")
+  previousLives     Int      @map("previous_lives")
+  newLives          Int      @map("new_lives")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@map("life_purchase_log")
 }

@@ -1,3 +1,4 @@
+import type { Payment as PrismaPayment } from '@prisma/client'
 import type { Product } from '../products/products.model.js'
 import { prisma } from '../database/prisma.js'
 import { mapPayment } from './payments.mapper.js'
@@ -12,6 +13,7 @@ export async function insertPayment(params: {
   provider: string
   providerPaymentId: string
   confirmationUrl: string
+  metadata: Record<string, string>
 }): Promise<Payment> {
   const payment = await prisma.payment.create({
     data: {
@@ -28,7 +30,7 @@ export async function insertPayment(params: {
         contactEmail: params.contactEmail,
         contactTelegram: params.contactTelegram,
         productDescription: params.product.description,
-        providerMode: 'stub',
+        ...params.metadata,
       },
     },
   })
@@ -44,6 +46,62 @@ export async function findPaymentById(id: string): Promise<Payment | undefined> 
   })
 
   return payment ? mapPayment(payment) : undefined
+}
+
+export async function findStoredPaymentById(id: string): Promise<PrismaPayment | undefined> {
+  const payment = await prisma.payment.findUnique({
+    where: {
+      id,
+    },
+  })
+
+  return payment ?? undefined
+}
+
+export async function findStoredPaymentByProviderPaymentId(
+  providerPaymentId: string,
+): Promise<PrismaPayment | undefined> {
+  const payment = await prisma.payment.findFirst({
+    where: {
+      providerPaymentId,
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+  })
+
+  return payment ?? undefined
+}
+
+export async function markPaymentPaidIfPending(id: string) {
+  const updated = await prisma.payment.updateMany({
+    where: {
+      id,
+      status: 'pending',
+    },
+    data: {
+      status: 'paid',
+    },
+  })
+
+  if (updated.count > 0) {
+    return 'paid-now' as const
+  }
+
+  const payment = await prisma.payment.findUnique({
+    where: {
+      id,
+    },
+    select: {
+      status: true,
+    },
+  })
+
+  if (!payment) {
+    return 'not-found' as const
+  }
+
+  return payment.status === 'paid' ? ('already-paid' as const) : ('not-changed' as const)
 }
 
 export async function markPaymentPaid(id: string): Promise<Payment | undefined> {
