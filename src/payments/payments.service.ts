@@ -14,8 +14,30 @@ export function normalizeNickname(value: string | undefined) {
   return nickname
 }
 
+export function normalizeContactEmail(value: string | undefined) {
+  const email = value?.trim()
+
+  if (!email || email.length > 120 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return undefined
+  }
+
+  return email
+}
+
+export function normalizeTelegram(value: string | undefined) {
+  const telegram = value?.trim()
+
+  if (!telegram || !/^@?[A-Za-z0-9_]{5,32}$/.test(telegram)) {
+    return undefined
+  }
+
+  return telegram.startsWith('@') ? telegram : `@${telegram}`
+}
+
 export async function createPayment(params: {
   nickname: string
+  contactEmail: string
+  contactTelegram: string
   productId: string | undefined
 }) {
   if (!isDatabaseConfigured()) {
@@ -43,6 +65,8 @@ export async function createPayment(params: {
   const payment = await insertPayment({
     id,
     nickname: params.nickname,
+    contactEmail: params.contactEmail,
+    contactTelegram: params.contactTelegram,
     product,
     provider: providerPayment.provider,
     providerPaymentId: providerPayment.providerPaymentId,

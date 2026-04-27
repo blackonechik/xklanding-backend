@@ -5,7 +5,14 @@ import { env } from '../config/env.js'
 import { checkDatabase } from '../database/prisma.js'
 import { getProducts } from '../products/products.service.js'
 import { readString } from '../shared/http.js'
-import { confirmMockPayment, createPayment, getPayment, normalizeNickname } from '../payments/payments.service.js'
+import {
+  confirmMockPayment,
+  createPayment,
+  getPayment,
+  normalizeContactEmail,
+  normalizeNickname,
+  normalizeTelegram,
+} from '../payments/payments.service.js'
 
 export function createApp() {
   const app = new Hono()
@@ -39,6 +46,8 @@ export function createApp() {
   app.post('/api/payments', async (c) => {
     const body = await c.req.json().catch(() => undefined)
     const nickname = normalizeNickname(readString(body, 'nickname'))
+    const contactEmail = normalizeContactEmail(readString(body, 'email'))
+    const contactTelegram = normalizeTelegram(readString(body, 'telegram'))
 
     if (!nickname) {
       return c.json(
@@ -50,8 +59,30 @@ export function createApp() {
       )
     }
 
+    if (!contactEmail) {
+      return c.json(
+        {
+          error: 'INVALID_EMAIL',
+          message: 'Укажите корректную почту для связи с администратором.',
+        },
+        400,
+      )
+    }
+
+    if (!contactTelegram) {
+      return c.json(
+        {
+          error: 'INVALID_TELEGRAM',
+          message: 'Укажите Telegram username: от 5 до 32 символов, можно с @ в начале.',
+        },
+        400,
+      )
+    }
+
     const result = await createPayment({
       nickname,
+      contactEmail,
+      contactTelegram,
       productId: readString(body, 'productId'),
     })
 

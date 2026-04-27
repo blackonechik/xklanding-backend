@@ -6,6 +6,8 @@ import type { Payment } from './payments.model.js'
 export async function insertPayment(params: {
   id: string
   nickname: string
+  contactEmail: string
+  contactTelegram: string
   product: Product
   provider: string
   providerPaymentId: string
@@ -23,6 +25,8 @@ export async function insertPayment(params: {
       providerPaymentId: params.providerPaymentId,
       confirmationUrl: params.confirmationUrl,
       metadata: {
+        contactEmail: params.contactEmail,
+        contactTelegram: params.contactTelegram,
         productDescription: params.product.description,
         providerMode: 'stub',
       },
