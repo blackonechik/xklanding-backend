@@ -109,6 +109,37 @@ export async function markPaymentPaidIfPending(id: string) {
   return payment.status === 'paid' ? ('already-paid' as const) : ('not-changed' as const)
 }
 
+export async function markPaymentFailedIfPending(id: string) {
+  const updated = await prisma.payment.updateMany({
+    where: {
+      id,
+      status: 'pending',
+    },
+    data: {
+      status: 'failed',
+    },
+  })
+
+  if (updated.count > 0) {
+    return 'failed-now' as const
+  }
+
+  const payment = await prisma.payment.findUnique({
+    where: {
+      id,
+    },
+    select: {
+      status: true,
+    },
+  })
+
+  if (!payment) {
+    return 'not-found' as const
+  }
+
+  return payment.status === 'failed' ? ('already-failed' as const) : ('not-changed' as const)
+}
+
 export async function markPaymentPaid(id: string): Promise<Payment | undefined> {
   const payment = await prisma.payment
     .update({

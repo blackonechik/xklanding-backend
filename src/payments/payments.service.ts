@@ -17,6 +17,7 @@ import {
   findPaymentById,
   findStoredPaymentById,
   findStoredPaymentByProviderPaymentId,
+  markPaymentFailedIfPending,
   insertPayment,
   markPaymentPaid,
   markPaymentPaidIfPending,
@@ -54,7 +55,7 @@ export function normalizeTelegram(value: string | undefined) {
 }
 
 export type YookassaWebhookBody = {
-  event?: string
+  event?: 'payment.succeeded' | 'payment.canceled' | string
   object?: {
     id?: string
     status?: string
@@ -332,11 +333,14 @@ async function syncStoredPaymentWithProvider(storedPayment: StoredPayment) {
 
   const providerPayment = await getYookassaPayment(storedPayment.providerPaymentId).catch(() => undefined)
 
-  if (providerPayment?.status !== 'succeeded') {
+  if (providerPayment?.status === 'succeeded') {
+    await applySuccessfulPayment(storedPayment, providerPayment.id)
     return
   }
 
-  await applySuccessfulPayment(storedPayment, providerPayment.id)
+  if (providerPayment?.status === 'canceled') {
+    await applyCanceledPayment(storedPayment)
+  }
 }
 
 async function applySuccessfulPayment(storedPayment: StoredPayment, providerPaymentId: string) {
@@ -350,6 +354,14 @@ async function applySuccessfulPayment(storedPayment: StoredPayment, providerPaym
     }
   }
 
+  if (paymentStatus === 'not-changed') {
+    return {
+      ok: true as const,
+      applied: false,
+      ignored: true,
+    }
+  }
+
   if (storedPayment.productId === 'smp-pass') {
     await activateWhitelistEntry({
       nickname: storedPayment.nickname,
@@ -358,7 +370,7 @@ async function applySuccessfulPayment(storedPayment: StoredPayment, providerPaym
 
     return {
       ok: true as const,
-      applied: paymentStatus !== 'not-changed',
+      applied: paymentStatus === 'paid-now',
       ignored: false,
     }
   }
@@ -366,7 +378,7 @@ async function applySuccessfulPayment(storedPayment: StoredPayment, providerPaym
   if (storedPayment.productId !== 'life') {
     return {
       ok: true as const,
-      applied: paymentStatus !== 'not-changed',
+      applied: paymentStatus === 'paid-now',
       ignored: false,
     }
   }
@@ -415,6 +427,28 @@ async function applySuccessfulPayment(storedPayment: StoredPayment, providerPaym
   }
 }
 
+async function applyCanceledPayment(storedPayment: StoredPayment) {
+  const paymentStatus = await markPaymentFailedIfPending(storedPayment.id)
+
+  if (paymentStatus === 'not-found') {
+    return {
+      ok: false as const,
+      status: 404,
+      error: 'PAYMENT_NOT_FOUND',
+    }
+  }
+
+  if (paymentStatus === 'failed-now' && storedPayment.promoCodeId) {
+    await releasePromoUse(storedPayment.promoCodeId)
+  }
+
+  return {
+    ok: true as const,
+    applied: paymentStatus === 'failed-now',
+    ignored: paymentStatus !== 'failed-now',
+  }
+}
+
 export async function handleYookassaWebhook(payload: YookassaWebhookBody) {
   if (!isDatabaseConfigured()) {
     return {
@@ -424,7 +458,10 @@ export async function handleYookassaWebhook(payload: YookassaWebhookBody) {
     }
   }
 
-  if (payload.event !== 'payment.succeeded' || payload.object?.status !== 'succeeded') {
+  const isSucceededEvent = payload.event === 'payment.succeeded' && payload.object?.status === 'succeeded'
+  const isCanceledEvent = payload.event === 'payment.canceled' && payload.object?.status === 'canceled'
+
+  if (!isSucceededEvent && !isCanceledEvent) {
     return {
       ok: true as const,
       applied: false,
@@ -432,7 +469,7 @@ export async function handleYookassaWebhook(payload: YookassaWebhookBody) {
     }
   }
 
-  const providerPaymentId = payload.object.id
+  const providerPaymentId = payload.object?.id
 
   if (!providerPaymentId) {
     return {
@@ -452,5 +489,28 @@ export async function handleYookassaWebhook(payload: YookassaWebhookBody) {
     }
   }
 
-  return applySuccessfulPayment(storedPayment, providerPaymentId)
+  const providerPayment = await getYookassaPayment(providerPaymentId).catch(() => undefined)
+
+  if (!providerPayment) {
+    return {
+      ok: false as const,
+      status: 502,
+      error: 'YOOKASSA_VERIFY_FAILED',
+    }
+  }
+
+  const isCurrentSucceeded = isSucceededEvent && providerPayment.status === 'succeeded'
+  const isCurrentCanceled = isCanceledEvent && providerPayment.status === 'canceled'
+
+  if (!isCurrentSucceeded && !isCurrentCanceled) {
+    return {
+      ok: true as const,
+      applied: false,
+      ignored: true,
+    }
+  }
+
+  return isCurrentSucceeded
+    ? applySuccessfulPayment(storedPayment, providerPayment.id)
+    : applyCanceledPayment(storedPayment)
 }
