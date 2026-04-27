@@ -6,22 +6,48 @@ datasource db {
   provider = "postgresql"
 }
 
+enum PromoCodeDiscountType {
+  percent
+  fixed
+}
+
 model Payment {
   id                String   @id @default(uuid()) @db.Uuid
   nickname          String
   productId         String   @map("product_id")
   productName       String   @map("product_name")
   amountRub         Int      @map("amount_rub")
+  discountRub       Int      @default(0) @map("discount_rub")
   status            String
   provider          String   @default("yookassa")
   providerPaymentId String?  @map("provider_payment_id")
   confirmationUrl   String   @map("confirmation_url")
+  promoCodeId       String?  @map("promo_code_id") @db.Uuid
   metadata          Json     @default("{}")
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   lifePurchaseLog   LifePurchaseLog?
+  promoCode         PromoCode? @relation(fields: [promoCodeId], references: [id], onDelete: SetNull)
 
   @@map("payments")
+}
+
+model PromoCode {
+  id                  String                @id @default(uuid()) @db.Uuid
+  code                String                @unique
+  discountType        PromoCodeDiscountType @map("discount_type")
+  discountValue       Int                   @map("discount_value")
+  maxUses             Int?                  @map("max_uses")
+  maxUsesPerNickname  Int?                  @map("max_uses_per_nickname")
+  usedCount           Int                   @default(0) @map("used_count")
+  isActive            Boolean               @default(true) @map("is_active")
+  startsAt            DateTime?             @map("starts_at") @db.Timestamptz(6)
+  endsAt              DateTime?             @map("ends_at") @db.Timestamptz(6)
+  createdAt           DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  payments            Payment[]
+
+  @@map("promo_codes")
 }
 
 model LifePurchaseLog {

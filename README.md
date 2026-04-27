@@ -72,13 +72,17 @@ docker run --env-file .env xksite-backend-migrate
 - `POST /api/payments/yookassa/webhook` processes webhook events (`payment.succeeded`).
 - `GET /api/payments/:id/mock-confirm` is available only when Yookassa is not configured.
 - `GET /api/admin/dashboard` returns admin data (requires `x-admin-token`).
+- `GET /api/admin/promocodes` returns promo codes list (requires `x-admin-token`).
+- `POST /api/admin/promocodes` creates a promo code (requires `x-admin-token`).
+- `PATCH /api/admin/promocodes/:id` updates limits/active state (requires `x-admin-token`).
 
 ## Payment Payload
 
 ```json
 {
   "nickname": "Steve_2026",
-  "productId": "smp-pass"
+  "productId": "smp-pass",
+  "promoCode": "WELCOME10"
 }
 ```
 
@@ -86,6 +90,17 @@ Available products:
 
 - `smp-pass` — проходка на XK HARDCORE, `200 ₽`.
 - `life` — дополнительная RP-жизнь, `200 ₽`.
+
+## Promo codes
+
+Promo codes support:
+
+- `discountType`: `percent` or `fixed`;
+- `discountValue`: integer (`1..99` for `percent`);
+- optional global limit `maxUses`;
+- optional per nickname limit `maxUsesPerNickname`;
+- optional active window `startsAt` / `endsAt`;
+- activation state `isActive`.
 
 ## Auto-donate lives
 

@@ -6,6 +6,11 @@ import {
   createYookassaPayment,
   isYookassaConfigured,
 } from '../providers/yookassa/yookassa.client.js'
+import {
+  releasePromoUse,
+  reservePromoUse,
+  resolvePromoForPayment,
+} from '../promocodes/promocodes.service.js'
 import { applyLifePurchase, findLimitedLivesPlayerByName } from './lives.repository.js'
 import {
   findPaymentById,
@@ -59,6 +64,7 @@ export async function createPayment(params: {
   contactEmail: string
   contactTelegram: string
   productId: string | undefined
+  promoCode?: string
 }) {
   if (!isDatabaseConfigured()) {
     return {
@@ -114,6 +120,33 @@ export async function createPayment(params: {
     }
   }
 
+  const promoResult = await resolvePromoForPayment({
+    code: params.promoCode,
+    nickname: params.nickname,
+    productAmountRub: product.amountRub,
+  })
+
+  if (!promoResult.ok) {
+    return promoResult
+  }
+
+  const promoCodeId = promoResult.promoCodeId
+  const chargeAmountRub = promoResult.amountRub
+  const discountRub = promoResult.discountRub
+
+  if (promoCodeId) {
+    const reserved = await reservePromoUse(promoCodeId)
+
+    if (!reserved) {
+      return {
+        ok: false as const,
+        status: 409,
+        error: 'PROMO_LIMIT_REACHED',
+        message: 'Лимит активаций промокода исчерпан.',
+      }
+    }
+  }
+
   const id = randomUUID()
   const returnUrl = `${env.frontendUrl}/payment/pending?orderId=${id}`
 
@@ -126,7 +159,7 @@ export async function createPayment(params: {
   try {
     providerPayment = await createYookassaPayment({
       orderId: id,
-      amountRub: product.amountRub,
+      amountRub: chargeAmountRub,
       description: `${product.name} для ${params.nickname}`,
       returnUrl,
       metadata: {
@@ -135,9 +168,15 @@ export async function createPayment(params: {
         nickname: params.nickname,
         playerUuid: lifePlayer?.playerUuid ?? '',
         playerName: lifePlayer?.playerName ?? '',
+        promoCode: promoResult.promoCode ?? '',
+        discountRub: String(discountRub),
       },
     })
   } catch (error) {
+    if (promoCodeId) {
+      await releasePromoUse(promoCodeId)
+    }
+
     return {
       ok: false as const,
       status: 502,
@@ -155,6 +194,9 @@ export async function createPayment(params: {
     contactEmail: params.contactEmail,
     contactTelegram: params.contactTelegram,
     product,
+    amountRub: chargeAmountRub,
+    discountRub,
+    promoCodeId,
     provider: providerPayment.provider,
     providerPaymentId: providerPayment.providerPaymentId,
     confirmationUrl: providerPayment.confirmationUrl,
@@ -162,8 +204,26 @@ export async function createPayment(params: {
       providerMode: 'live',
       playerUuid: lifePlayer?.playerUuid ?? '',
       playerName: lifePlayer?.playerName ?? '',
+      promoCode: promoResult.promoCode ?? '',
+      discountRub: String(discountRub),
+      originalAmountRub: String(product.amountRub),
     },
+  }).catch(async () => {
+    if (promoCodeId) {
+      await releasePromoUse(promoCodeId)
+    }
+
+    return undefined
   })
+
+  if (!payment) {
+    return {
+      ok: false as const,
+      status: 500,
+      error: 'PAYMENT_CREATE_FAILED',
+      message: 'Не удалось сохранить платеж. Попробуйте ещё раз.',
+    }
+  }
 
   return {
     ok: true as const,

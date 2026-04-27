@@ -10,6 +10,9 @@ export async function insertPayment(params: {
   contactEmail: string
   contactTelegram: string
   product: Product
+  amountRub: number
+  discountRub: number
+  promoCodeId?: string
   provider: string
   providerPaymentId: string
   confirmationUrl: string
@@ -21,11 +24,13 @@ export async function insertPayment(params: {
       nickname: params.nickname,
       productId: params.product.id,
       productName: params.product.name,
-      amountRub: params.product.amountRub,
+      amountRub: params.amountRub,
+      discountRub: params.discountRub,
       status: 'pending',
       provider: params.provider,
       providerPaymentId: params.providerPaymentId,
       confirmationUrl: params.confirmationUrl,
+      promoCodeId: params.promoCodeId,
       metadata: {
         contactEmail: params.contactEmail,
         contactTelegram: params.contactTelegram,
