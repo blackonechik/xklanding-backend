@@ -4,6 +4,7 @@ import { isDatabaseConfigured } from '../database/prisma.js'
 import { getProductById } from '../products/products.service.js'
 import {
   createYookassaPayment,
+  getYookassaPayment,
   isYookassaConfigured,
 } from '../providers/yookassa/yookassa.client.js'
 import {
@@ -14,6 +15,7 @@ import {
 import { applyLifePurchase, findLimitedLivesPlayerByName } from './lives.repository.js'
 import {
   findPaymentById,
+  findStoredPaymentById,
   findStoredPaymentByProviderPaymentId,
   insertPayment,
   markPaymentPaid,
@@ -246,6 +248,18 @@ export async function getPayment(id: string) {
     }
   }
 
+  const storedPayment = await findStoredPaymentById(id)
+
+  if (!storedPayment) {
+    return {
+      ok: false as const,
+      status: 404,
+      error: 'PAYMENT_NOT_FOUND',
+    }
+  }
+
+  await syncStoredPaymentWithProvider(storedPayment)
+
   const payment = await findPaymentById(id)
 
   if (!payment) {
@@ -304,43 +318,28 @@ function readMetadataString(metadata: unknown, key: string) {
   return typeof value === 'string' && value.trim() ? value : undefined
 }
 
-export async function handleYookassaWebhook(payload: YookassaWebhookBody) {
-  if (!isDatabaseConfigured()) {
-    return {
-      ok: false as const,
-      status: 503,
-      error: 'DATABASE_NOT_CONFIGURED',
-    }
+type StoredPayment = NonNullable<Awaited<ReturnType<typeof findStoredPaymentById>>>
+
+async function syncStoredPaymentWithProvider(storedPayment: StoredPayment) {
+  if (
+    storedPayment.status !== 'pending' ||
+    storedPayment.provider !== 'yookassa' ||
+    !storedPayment.providerPaymentId ||
+    !isYookassaConfigured()
+  ) {
+    return
   }
 
-  if (payload.event !== 'payment.succeeded' || payload.object?.status !== 'succeeded') {
-    return {
-      ok: true as const,
-      applied: false,
-      ignored: true,
-    }
+  const providerPayment = await getYookassaPayment(storedPayment.providerPaymentId).catch(() => undefined)
+
+  if (providerPayment?.status !== 'succeeded') {
+    return
   }
 
-  const providerPaymentId = payload.object.id
+  await applySuccessfulPayment(storedPayment, providerPayment.id)
+}
 
-  if (!providerPaymentId) {
-    return {
-      ok: false as const,
-      status: 400,
-      error: 'INVALID_PROVIDER_PAYMENT_ID',
-    }
-  }
-
-  const storedPayment = await findStoredPaymentByProviderPaymentId(providerPaymentId)
-
-  if (!storedPayment) {
-    return {
-      ok: true as const,
-      applied: false,
-      ignored: true,
-    }
-  }
-
+async function applySuccessfulPayment(storedPayment: StoredPayment, providerPaymentId: string) {
   const paymentStatus = await markPaymentPaidIfPending(storedPayment.id)
 
   if (paymentStatus === 'not-found') {
@@ -379,13 +378,8 @@ export async function handleYookassaWebhook(payload: YookassaWebhookBody) {
       ? (storedPayment.metadata as Record<string, unknown>)
       : {}
 
-  const playerUuid =
-    readMetadataString(metadata, 'playerUuid') ??
-    readMetadataString(payload.object.metadata, 'playerUuid')
-  const playerName =
-    readMetadataString(metadata, 'playerName') ??
-    readMetadataString(payload.object.metadata, 'playerName') ??
-    storedPayment.nickname
+  const playerUuid = readMetadataString(metadata, 'playerUuid')
+  const playerName = readMetadataString(metadata, 'playerName') ?? storedPayment.nickname
 
   if (!playerUuid) {
     return {
@@ -419,4 +413,44 @@ export async function handleYookassaWebhook(payload: YookassaWebhookBody) {
     applied: !lifeResult.alreadyApplied,
     ignored: false,
   }
+}
+
+export async function handleYookassaWebhook(payload: YookassaWebhookBody) {
+  if (!isDatabaseConfigured()) {
+    return {
+      ok: false as const,
+      status: 503,
+      error: 'DATABASE_NOT_CONFIGURED',
+    }
+  }
+
+  if (payload.event !== 'payment.succeeded' || payload.object?.status !== 'succeeded') {
+    return {
+      ok: true as const,
+      applied: false,
+      ignored: true,
+    }
+  }
+
+  const providerPaymentId = payload.object.id
+
+  if (!providerPaymentId) {
+    return {
+      ok: false as const,
+      status: 400,
+      error: 'INVALID_PROVIDER_PAYMENT_ID',
+    }
+  }
+
+  const storedPayment = await findStoredPaymentByProviderPaymentId(providerPaymentId)
+
+  if (!storedPayment) {
+    return {
+      ok: true as const,
+      applied: false,
+      ignored: true,
+    }
+  }
+
+  return applySuccessfulPayment(storedPayment, providerPaymentId)
 }

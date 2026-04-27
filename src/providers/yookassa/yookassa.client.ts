@@ -83,3 +83,35 @@ export async function createYookassaPayment(params: {
     confirmationUrl,
   }
 }
+
+export async function getYookassaPayment(providerPaymentId: string) {
+  const authHeader = getAuthHeader()
+
+  if (!authHeader) {
+    throw new Error('YOOKASSA_NOT_CONFIGURED')
+  }
+
+  const response = await fetch(
+    `${env.yookassaApiUrl}/payments/${encodeURIComponent(providerPaymentId)}`,
+    {
+      headers: {
+        Authorization: authHeader,
+      },
+    },
+  )
+  const json = (await response.json().catch(() => undefined)) as YookassaPaymentResponse | undefined
+
+  if (!response.ok) {
+    const statusPart = json?.status ? `, status=${json.status}` : ''
+    throw new Error(`YOOKASSA_GET_FAILED: http=${response.status}${statusPart}`)
+  }
+
+  if (!json?.id || !json.status) {
+    throw new Error('YOOKASSA_INVALID_RESPONSE')
+  }
+
+  return {
+    id: json.id,
+    status: json.status,
+  }
+}

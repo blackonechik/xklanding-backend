@@ -107,7 +107,8 @@ Promo codes support:
 For product `smp-pass`, backend:
 
 - creates Yookassa payment;
-- waits for `payment.succeeded` webhook;
+- waits for `payment.succeeded` webhook or syncs status from Yookassa when the
+  frontend checks `/api/payments/:id`;
 - lowercases the purchased nickname;
 - inserts or reactivates it in `whitelist_entries`;
 - sets `source` to `xksite`.
