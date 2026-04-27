@@ -102,6 +102,16 @@ Promo codes support:
 - optional active window `startsAt` / `endsAt`;
 - activation state `isActive`.
 
+## Auto-whitelist pass
+
+For product `smp-pass`, backend:
+
+- creates Yookassa payment;
+- waits for `payment.succeeded` webhook;
+- lowercases the purchased nickname;
+- inserts or reactivates it in `whitelist_entries`;
+- sets `source` to `xksite`.
+
 ## Auto-donate lives
 
 For product `life`, backend:

@@ -19,6 +19,7 @@ import {
   markPaymentPaid,
   markPaymentPaidIfPending,
 } from './payments.repository.js'
+import { activateWhitelistEntry } from './whitelist.repository.js'
 
 export function normalizeNickname(value: string | undefined) {
   const nickname = value?.trim()
@@ -347,6 +348,19 @@ export async function handleYookassaWebhook(payload: YookassaWebhookBody) {
       ok: false as const,
       status: 404,
       error: 'PAYMENT_NOT_FOUND',
+    }
+  }
+
+  if (storedPayment.productId === 'smp-pass') {
+    await activateWhitelistEntry({
+      nickname: storedPayment.nickname,
+      source: 'xksite',
+    })
+
+    return {
+      ok: true as const,
+      applied: paymentStatus !== 'not-changed',
+      ignored: false,
     }
   }
 
