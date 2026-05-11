@@ -1,14 +1,26 @@
 export const env = {
   port: Number(process.env.PORT ?? 3001),
   databaseUrl: process.env.DATABASE_URL,
-  frontendUrl: process.env.FRONTEND_URL ?? 'http://localhost:3000',
+  frontendUrl: process.env.FRONTEND_URL ?? "http://localhost:3000",
   publicApiUrl: process.env.PUBLIC_API_URL,
   corsOrigin: process.env.CORS_ORIGIN,
-  yookassaApiUrl: process.env.YOOKASSA_API_URL ?? 'https://api.yookassa.ru/v3',
+  yookassaApiUrl: process.env.YOOKASSA_API_URL ?? "https://api.yookassa.ru/v3",
   yookassaShopId: process.env.YOOKASSA_SHOP_ID,
   yookassaSecretKey: process.env.YOOKASSA_SECRET_KEY,
   yookassaWebhookSecret: process.env.YOOKASSA_WEBHOOK_SECRET,
   adminToken: process.env.ADMIN_TOKEN,
   livesDefault: Number(process.env.LIVES_DEFAULT ?? 2),
   livesMax: Number(process.env.LIVES_MAX ?? 10),
-}
+  sessionSecret: process.env.SESSION_SECRET,
+  discordClientId: process.env.DISCORD_CLIENT_ID,
+  discordClientSecret: process.env.DISCORD_CLIENT_SECRET,
+  discordRedirectUri: process.env.DISCORD_REDIRECT_URI,
+  bankMaxCardsPerPlayer: Number(process.env.BANK_MAX_CARDS_PER_PLAYER ?? 3),
+  bankMinTransferDiamonds: Number(process.env.BANK_MIN_TRANSFER_DIAMONDS ?? 1),
+  bankMaxTransferDiamonds: Number(
+    process.env.BANK_MAX_TRANSFER_DIAMONDS ?? 256,
+  ),
+  bankDailyTransferDiamondsLimit: Number(
+    process.env.BANK_DAILY_TRANSFER_DIAMONDS_LIMIT ?? 1024,
+  ),
+};

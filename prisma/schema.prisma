@@ -78,3 +78,38 @@ model WhitelistEntry {
 
   @@map("whitelist_entries")
 }
+
+model BankCard {
+  id              String         @id @default(uuid()) @db.Uuid
+  ownerNickname   String         @map("owner_nickname") @db.VarChar(16)
+  ownerLowercase  String         @map("owner_lowercase") @db.VarChar(16)
+  title           String         @db.VarChar(40)
+  cardNumber      String         @unique @map("card_number") @db.VarChar(19)
+  design          String         @default("creeper") @db.VarChar(32)
+  balanceDiamonds Int            @default(0) @map("balance_diamonds")
+  isActive        Boolean        @default(true) @map("is_active")
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  outgoing        BankTransfer[] @relation("OutgoingTransfers")
+  incoming        BankTransfer[] @relation("IncomingTransfers")
+
+  @@index([ownerLowercase])
+  @@map("bank_cards")
+}
+
+model BankTransfer {
+  id             String   @id @default(uuid()) @db.Uuid
+  fromCardId     String   @map("from_card_id") @db.Uuid
+  toCardId       String   @map("to_card_id") @db.Uuid
+  fromOwner      String   @map("from_owner") @db.VarChar(16)
+  toOwner        String   @map("to_owner") @db.VarChar(16)
+  amountDiamonds Int      @map("amount_diamonds")
+  comment        String?  @db.VarChar(120)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  fromCard       BankCard @relation("OutgoingTransfers", fields: [fromCardId], references: [id], onDelete: Restrict)
+  toCard         BankCard @relation("IncomingTransfers", fields: [toCardId], references: [id], onDelete: Restrict)
+
+  @@index([fromCardId])
+  @@index([toCardId])
+  @@map("bank_transfers")
+}

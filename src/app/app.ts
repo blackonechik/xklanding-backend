@@ -1,6 +1,7 @@
 import { Hono, type Context } from 'hono'
 import { cors } from 'hono/cors'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
+import { registerAccountRoutes } from '../account/account.routes.js'
 import { getAdminDashboard } from '../admin/admin.service.js'
 import { env } from '../config/env.js'
 import { checkDatabase } from '../database/prisma.js'
@@ -26,8 +27,9 @@ export function createApp() {
     '*',
     cors({
       origin: env.corsOrigin ?? env.frontendUrl,
-      allowMethods: ['GET', 'POST', 'PATCH', 'OPTIONS'],
+      allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
       allowHeaders: ['Content-Type', 'x-admin-token'],
+      credentials: true,
     }),
   )
 
@@ -113,6 +115,8 @@ export function createApp() {
   })
 
   app.get('/api/products', (c) => c.json({ products: getProducts() }))
+
+  registerAccountRoutes(app)
 
   app.post('/api/payments', async (c) => {
     const body = await c.req.json().catch(() => undefined)
