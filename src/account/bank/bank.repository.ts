@@ -18,8 +18,8 @@ function generateCardNumber() {
 }
 
 async function lockBankKey(tx: BankTransaction, key: string) {
-  await tx.$executeRaw`
-    select pg_advisory_xact_lock(hashtext(${key}))
+  await tx.$queryRaw<{ locked: string }[]>`
+    select coalesce(pg_advisory_xact_lock(hashtext(${key}))::text, 'locked') as locked
   `;
 }
 
