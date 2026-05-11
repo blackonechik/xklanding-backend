@@ -14,6 +14,7 @@ import {
   transferDiamonds,
 } from "./bank/bank.repository.js";
 import { findPlayerByNickname } from "./limboauth/limboauth.repository.js";
+import { createFallbackSkinPng } from "./skin-restorer/fallback-skin.js";
 import { getSkinTextureByPlayerIdentifier } from "./skin-restorer/skin-restorer.repository.js";
 
 function normalizeUuid(identifier: string) {
@@ -24,6 +25,19 @@ function normalizeUuid(identifier: string) {
   }
 
   return `${compact.slice(0, 8)}-${compact.slice(8, 12)}-${compact.slice(12, 16)}-${compact.slice(16, 20)}-${compact.slice(20)}`;
+}
+
+function skinResponse(bytes: Uint8Array, contentType: string, cacheControl: string) {
+  const responseBuffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(responseBuffer).set(bytes);
+
+  return new Response(responseBuffer, {
+    status: 200,
+    headers: {
+      "Content-Type": contentType,
+      "Cache-Control": cacheControl,
+    },
+  });
 }
 
 export function registerAccountRoutes(app: Hono) {
@@ -73,26 +87,21 @@ export function registerAccountRoutes(app: Hono) {
 
     const uuid = normalizeUuid(identifier) ?? player?.uuid ?? player?.premiumUuid ?? null;
 
-    if (!uuid) {
-      return c.json({ error: "SKIN_NOT_FOUND" }, 404);
+    const result = uuid ? await getSkinTextureByPlayerIdentifier(uuid) : null;
+
+    if (result) {
+      return skinResponse(
+        result.bytes,
+        result.contentType,
+        "public, max-age=86400, immutable",
+      );
     }
 
-    const result = await getSkinTextureByPlayerIdentifier(uuid);
-
-    if (!result) {
-      return c.json({ error: "SKIN_NOT_FOUND" }, 404);
-    }
-
-    const responseBuffer = new ArrayBuffer(result.bytes.byteLength);
-    new Uint8Array(responseBuffer).set(result.bytes);
-
-    return new Response(responseBuffer, {
-      status: 200,
-      headers: {
-        "Content-Type": result.contentType,
-        "Cache-Control": "public, max-age=86400, immutable",
-      },
-    });
+    return skinResponse(
+      createFallbackSkinPng(player?.nickname ?? identifier),
+      "image/png",
+      "public, max-age=300",
+    );
   });
 
   app.post("/api/account/bank/cards", async (c) => {
