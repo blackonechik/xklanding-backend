@@ -70,3 +70,35 @@ export async function findPlayerByDiscordId(
 
   return rows[0] ? mapPlayer(rows[0]) : undefined;
 }
+
+export async function findPlayerByNickname(
+  nickname: string,
+): Promise<CabinetPlayer | undefined> {
+  const normalizedNickname = nickname.trim().toLowerCase();
+
+  if (!normalizedNickname) {
+    return undefined;
+  }
+
+  const rows = await prisma.$queryRaw<LimboAuthPlayerRow[]>`
+    select
+      auth."NICKNAME" as "nickname",
+      social."LOWERCASENICKNAME" as "lowercaseNickname",
+      nullif(auth."UUID", '') as "uuid",
+      nullif(auth."PREMIUMUUID", '') as "premiumUuid",
+      auth."REGDATE" as "regDate",
+      auth."LOGINDATE" as "loginDate",
+      social."DISCORD_ID"::text as "discordId",
+      coalesce(social."BLOCKED", false) as "blocked",
+      coalesce(social."TOTP_ENABLED", false) as "totpEnabled",
+      coalesce(social."NOTIFY_ENABLED", true) as "notifyEnabled",
+      lives.lives::int as "lives"
+    from "SOCIAL" social
+    join "AUTH" auth on auth."LOWERCASENICKNAME" = social."LOWERCASENICKNAME"
+    left join limited_lives_players lives on lower(lives.player_name) = social."LOWERCASENICKNAME"
+    where social."LOWERCASENICKNAME" = ${normalizedNickname}
+    limit 1
+  `;
+
+  return rows[0] ? mapPlayer(rows[0]) : undefined;
+}

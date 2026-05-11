@@ -13,6 +13,18 @@ import {
   getBankOverview,
   transferDiamonds,
 } from "./bank/bank.repository.js";
+import { findPlayerByNickname } from "./limboauth/limboauth.repository.js";
+import { getSkinTextureByPlayerIdentifier } from "./skin-restorer/skin-restorer.repository.js";
+
+function normalizeUuid(identifier: string) {
+  const compact = identifier.trim().replace(/-/g, "").toLowerCase();
+
+  if (!/^[0-9a-f]{32}$/.test(compact)) {
+    return null;
+  }
+
+  return `${compact.slice(0, 8)}-${compact.slice(8, 12)}-${compact.slice(12, 16)}-${compact.slice(16, 20)}-${compact.slice(20)}`;
+}
 
 export function registerAccountRoutes(app: Hono) {
   app.get("/api/auth/discord", (c) => {
@@ -50,6 +62,37 @@ export function registerAccountRoutes(app: Hono) {
 
     const bank = await getBankOverview(player.lowercaseNickname);
     return c.json({ player, bank });
+  });
+
+  app.get("/api/account/skins/:identifier", async (c) => {
+    const identifier = c.req.param("identifier").trim();
+
+    const player = /^[0-9a-fA-F-]{32,36}$/.test(identifier)
+      ? undefined
+      : await findPlayerByNickname(identifier);
+
+    const uuid = normalizeUuid(identifier) ?? player?.uuid ?? player?.premiumUuid ?? null;
+
+    if (!uuid) {
+      return c.json({ error: "SKIN_NOT_FOUND" }, 404);
+    }
+
+    const result = await getSkinTextureByPlayerIdentifier(uuid);
+
+    if (!result) {
+      return c.json({ error: "SKIN_NOT_FOUND" }, 404);
+    }
+
+    const responseBuffer = new ArrayBuffer(result.bytes.byteLength);
+    new Uint8Array(responseBuffer).set(result.bytes);
+
+    return new Response(responseBuffer, {
+      status: 200,
+      headers: {
+        "Content-Type": result.contentType,
+        "Cache-Control": "public, max-age=86400, immutable",
+      },
+    });
   });
 
   app.post("/api/account/bank/cards", async (c) => {
