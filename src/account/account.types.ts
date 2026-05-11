@@ -23,7 +23,8 @@ export type AccountSession = {
 
 export type TransferDiamondsInput = {
   fromCardId: string;
-  toCardNumber: string;
+  toCardNumber?: string;
+  toOwnerNickname?: string;
   amountDiamonds: number;
   comment?: string;
 };

@@ -6,6 +6,8 @@ import {
   type CreateBankCardInput,
 } from "./bank.model.js";
 
+type BankTransaction = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+
 function generateCardNumber() {
   const parts = ["4408"];
   for (let i = 0; i < 3; i += 1) {
@@ -13,6 +15,12 @@ function generateCardNumber() {
   }
 
   return parts.join(" ");
+}
+
+async function lockBankKey(tx: BankTransaction, key: string) {
+  await tx.$executeRaw`
+    select pg_advisory_xact_lock(hashtext(${key}))
+  `;
 }
 
 export async function getBankOverview(lowercaseNickname: string) {
@@ -51,9 +59,7 @@ export async function createBankCard(
   input: CreateBankCardInput,
 ) {
   return prisma.$transaction(async (tx) => {
-    await tx.$queryRaw`
-      select pg_advisory_xact_lock(hashtext(${player.lowercaseNickname}))
-    `;
+    await lockBankKey(tx, `bank-player:${player.lowercaseNickname}`);
 
     const activeCardsCount = await tx.bankCard.count({
       where: {
@@ -84,9 +90,7 @@ export async function createBankCard(
 
 export async function closeBankCard(player: CabinetPlayer, cardId: string) {
   return prisma.$transaction(async (tx) => {
-    await tx.$queryRaw`
-      select pg_advisory_xact_lock(hashtext(${cardId}))
-    `;
+    await lockBankKey(tx, `bank-card:${cardId}`);
 
     const card = await tx.bankCard.findFirst({
       where: {
@@ -157,21 +161,33 @@ export async function transferDiamonds(
         isActive: true,
       },
     });
-    const toCard = await tx.bankCard.findFirst({
-      where: {
-        cardNumber: params.toCardNumber.trim(),
-        isActive: true,
-      },
-    });
+    const toCardNumber = params.toCardNumber?.trim();
+    const toOwnerNickname = params.toOwnerNickname?.trim();
+    const toCard = toCardNumber
+      ? await tx.bankCard.findFirst({
+          where: {
+            cardNumber: toCardNumber,
+            isActive: true,
+          },
+        })
+      : toOwnerNickname
+        ? await tx.bankCard.findFirst({
+            where: {
+              ownerLowercase: toOwnerNickname.toLowerCase(),
+              isActive: true,
+            },
+            orderBy: {
+              createdAt: "asc",
+            },
+          })
+        : null;
 
     if (!fromCard || !toCard || fromCard.id === toCard.id) {
       return { ok: false as const, error: "CARD_NOT_FOUND" };
     }
 
     for (const cardId of [fromCard.id, toCard.id].sort()) {
-      await tx.$queryRaw`
-        select pg_advisory_xact_lock(hashtext(${cardId}))
-      `;
+      await lockBankKey(tx, `bank-card:${cardId}`);
     }
 
     const lockedFromCard = await tx.bankCard.findFirst({

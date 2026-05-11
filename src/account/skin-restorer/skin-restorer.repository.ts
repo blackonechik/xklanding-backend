@@ -64,7 +64,7 @@ async function getPlayerRowByUuid(uuid: string) {
   const rows = await prisma.$queryRawUnsafe<SkinRestorerPlayerRow[]>(
     `SELECT uuid, skin_identifier, skin_type, skin_variant FROM ${resolveTableName(
       "players",
-    )} WHERE lower(uuid) = lower($1) LIMIT 1`,
+    )} WHERE lower(uuid::text) = lower($1) LIMIT 1`,
     uuid,
   );
 
@@ -75,7 +75,7 @@ async function getPlayerSkinProperty(uuid: string) {
   const rows = await prisma.$queryRawUnsafe<SkinPropertyRow[]>(
     `SELECT value, signature FROM ${resolveTableName(
       "player_skins",
-    )} WHERE lower(uuid) = lower($1) LIMIT 1`,
+    )} WHERE lower(uuid::text) = lower($1) LIMIT 1`,
     uuid,
   );
 
@@ -130,7 +130,17 @@ async function getCustomSkinProperty(name: string) {
 export async function getSkinTextureByPlayerIdentifier(identifier: string) {
   const resolvedUuid = normalizeUuid(identifier) ?? identifier.trim();
 
-  const playerRow = await getPlayerRowByUuid(resolvedUuid);
+  const candidates = Array.from(
+    new Set([resolvedUuid, resolvedUuid.replace(/-/g, ""), identifier.trim()]),
+  ).filter(Boolean);
+
+  let playerRow: SkinRestorerPlayerRow | undefined;
+  for (const candidate of candidates) {
+    playerRow = await getPlayerRowByUuid(candidate).catch(() => undefined);
+    if (playerRow) {
+      break;
+    }
+  }
 
   if (!playerRow || !playerRow.skin_identifier || !playerRow.skin_type) {
     return null;
@@ -173,4 +183,83 @@ export async function getSkinTextureByPlayerIdentifier(identifier: string) {
   }
 
   return skinBytes;
+}
+
+export async function getSkinTextureByPlayerIdentifiers(identifiers: Array<string | null | undefined>) {
+  const candidates = Array.from(
+    new Set(
+      identifiers
+        .flatMap((identifier) => {
+          const trimmed = identifier?.trim();
+          if (!trimmed) {
+            return [];
+          }
+
+          const normalized = normalizeUuid(trimmed);
+          return normalized ? [trimmed, normalized, normalized.replace(/-/g, "")] : [trimmed];
+        })
+        .filter(Boolean),
+    ),
+  );
+
+  for (const candidate of candidates) {
+    const result = await getSkinTextureByPlayerIdentifier(candidate).catch(() => null);
+    if (result) {
+      return result;
+    }
+  }
+
+  return null;
+}
+
+export async function getMojangSkinTextureByNickname(nickname: string) {
+  const profileResponse = await fetch(
+    `https://api.mojang.com/users/profiles/minecraft/${encodeURIComponent(nickname)}`,
+    {
+      headers: {
+        "User-Agent": "XK HARDCORE",
+      },
+    },
+  ).catch(() => null);
+
+  if (!profileResponse?.ok) {
+    return null;
+  }
+
+  const profile = (await profileResponse.json().catch(() => null)) as
+    | { id?: string }
+    | null;
+
+  if (!profile?.id) {
+    return null;
+  }
+
+  const textureResponse = await fetch(
+    `https://sessionserver.mojang.com/session/minecraft/profile/${profile.id}`,
+    {
+      headers: {
+        "User-Agent": "XK HARDCORE",
+      },
+    },
+  ).catch(() => null);
+
+  if (!textureResponse?.ok) {
+    return null;
+  }
+
+  const textureProfile = (await textureResponse.json().catch(() => null)) as
+    | { properties?: Array<{ name?: string; value?: string }> }
+    | null;
+  const textures = textureProfile?.properties?.find(
+    (property) => property.name === "textures",
+  );
+
+  if (!textures?.value) {
+    return null;
+  }
+
+  const payload = decodeTexturePayload(textures.value);
+  const textureUrl = payload.textures?.SKIN?.url;
+
+  return textureUrl ? fetchTextureBytes(textureUrl) : null;
 }

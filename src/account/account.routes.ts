@@ -15,7 +15,10 @@ import {
 } from "./bank/bank.repository.js";
 import { findPlayerByNickname } from "./limboauth/limboauth.repository.js";
 import { createFallbackSkinPng } from "./skin-restorer/fallback-skin.js";
-import { getSkinTextureByPlayerIdentifier } from "./skin-restorer/skin-restorer.repository.js";
+import {
+  getMojangSkinTextureByNickname,
+  getSkinTextureByPlayerIdentifiers,
+} from "./skin-restorer/skin-restorer.repository.js";
 
 function normalizeUuid(identifier: string) {
   const compact = identifier.trim().replace(/-/g, "").toLowerCase();
@@ -27,7 +30,11 @@ function normalizeUuid(identifier: string) {
   return `${compact.slice(0, 8)}-${compact.slice(8, 12)}-${compact.slice(12, 16)}-${compact.slice(16, 20)}-${compact.slice(20)}`;
 }
 
-function skinResponse(bytes: Uint8Array, contentType: string, cacheControl: string) {
+function skinResponse(
+  bytes: Uint8Array,
+  contentType: string,
+  cacheControl: string,
+) {
   const responseBuffer = new ArrayBuffer(bytes.byteLength);
   new Uint8Array(responseBuffer).set(bytes);
 
@@ -85,15 +92,34 @@ export function registerAccountRoutes(app: Hono) {
       ? undefined
       : await findPlayerByNickname(identifier);
 
-    const uuid = normalizeUuid(identifier) ?? player?.uuid ?? player?.premiumUuid ?? null;
+    const uuid = normalizeUuid(identifier);
 
-    const result = uuid ? await getSkinTextureByPlayerIdentifier(uuid) : null;
+    const result = await getSkinTextureByPlayerIdentifiers([
+      identifier,
+      uuid,
+      player?.uuid,
+      player?.premiumUuid,
+      player?.nickname,
+      player?.lowercaseNickname,
+    ]);
 
     if (result) {
       return skinResponse(
         result.bytes,
         result.contentType,
         "public, max-age=86400, immutable",
+      );
+    }
+
+    const mojangSkin = await getMojangSkinTextureByNickname(
+      player?.nickname ?? identifier,
+    );
+
+    if (mojangSkin) {
+      return skinResponse(
+        mojangSkin.bytes,
+        mojangSkin.contentType,
+        "public, max-age=3600",
       );
     }
 
@@ -147,7 +173,8 @@ export function registerAccountRoutes(app: Hono) {
     const body = await c.req.json().catch(() => undefined);
     const result = await transferDiamonds(player, {
       fromCardId: readString(body, "fromCardId") ?? "",
-      toCardNumber: readString(body, "toCardNumber") ?? "",
+      toCardNumber: readString(body, "toCardNumber"),
+      toOwnerNickname: readString(body, "toOwnerNickname"),
       amountDiamonds: Number(readString(body, "amountDiamonds") ?? 0),
       comment: readString(body, "comment"),
     });
