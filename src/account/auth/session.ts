@@ -15,6 +15,10 @@ function getSessionSecret() {
   return env.sessionSecret ?? env.adminToken ?? "xk-local-dev-session-secret";
 }
 
+function getSessionCookieSameSite() {
+  return getBackendBaseUrl().startsWith("https://") ? "None" : "Lax";
+}
+
 function base64url(value: string | Buffer) {
   return Buffer.from(value).toString("base64url");
 }
@@ -73,7 +77,7 @@ export function setSessionCookie(
   setCookie(c, SESSION_COOKIE, session, {
     httpOnly: true,
     secure: getBackendBaseUrl().startsWith("https://"),
-    sameSite: "Lax",
+    sameSite: getSessionCookieSameSite(),
     path: "/",
     maxAge: SESSION_TTL_SECONDS,
   });

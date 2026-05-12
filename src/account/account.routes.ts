@@ -7,6 +7,7 @@ import {
   getCurrentPlayer,
   startDiscordLogin,
 } from "./account.service.js";
+import { resolveFrontendOrigin } from "./auth/oauth-state.js";
 import {
   closeBankCard,
   createBankCard,
@@ -49,9 +50,10 @@ function skinResponse(
 
 export function registerAccountRoutes(app: Hono) {
   app.get("/api/auth/discord", (c) => {
-    const auth = startDiscordLogin(c);
+    const returnTo = c.req.query("returnTo");
+    const auth = startDiscordLogin(c, returnTo);
     if (!auth.ok) {
-      return c.redirect(`${env.frontendUrl}/login?error=${auth.error}`);
+      return c.redirect(`${auth.redirectBaseUrl}/login?error=${auth.error}`);
     }
 
     return c.redirect(auth.url);
@@ -64,10 +66,10 @@ export function registerAccountRoutes(app: Hono) {
       c.req.query("state"),
     );
     if (!result.ok) {
-      return c.redirect(`${env.frontendUrl}/login?error=${result.error}`);
+      return c.redirect(`${result.redirectBaseUrl}/login?error=${result.error}`);
     }
 
-    return c.redirect(`${env.frontendUrl}/cabinet`);
+    return c.redirect(`${result.redirectBaseUrl}/cabinet`);
   });
 
   app.post("/api/auth/logout", (c) => {
