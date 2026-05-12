@@ -1,3 +1,12 @@
+function parseCorsOrigins(value: string | undefined, fallbackOrigin: string) {
+  const origins = (value ?? fallbackOrigin)
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+
+  return origins.length > 0 ? Array.from(new Set(origins)) : [fallbackOrigin]
+}
+
 export const env = {
   port: Number(process.env.PORT ?? 3001),
   databaseUrl: process.env.DATABASE_URL,
@@ -5,6 +14,10 @@ export const env = {
   frontendUrl: process.env.FRONTEND_URL ?? "http://localhost:3000",
   publicApiUrl: process.env.PUBLIC_API_URL,
   corsOrigin: process.env.CORS_ORIGIN,
+  corsOrigins: parseCorsOrigins(
+    process.env.CORS_ORIGIN,
+    process.env.FRONTEND_URL ?? 'http://localhost:3000',
+  ),
   yookassaApiUrl: process.env.YOOKASSA_API_URL ?? "https://api.yookassa.ru/v3",
   yookassaShopId: process.env.YOOKASSA_SHOP_ID,
   yookassaSecretKey: process.env.YOOKASSA_SECRET_KEY,

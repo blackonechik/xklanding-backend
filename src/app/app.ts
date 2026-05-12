@@ -26,7 +26,13 @@ export function createApp() {
   app.use(
     '*',
     cors({
-      origin: env.corsOrigin ?? env.frontendUrl,
+      origin: (origin) => {
+        if (!origin) {
+          return env.frontendUrl
+        }
+
+        return env.corsOrigins.includes(origin) ? origin : ''
+      },
       allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
       allowHeaders: ['Content-Type', 'x-admin-token'],
       credentials: true,

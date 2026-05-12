@@ -24,7 +24,7 @@ PORT=3001
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/xksite
 FRONTEND_URL=http://localhost:3000
 PUBLIC_API_URL=http://localhost:3001
-CORS_ORIGIN=http://localhost:3000
+CORS_ORIGIN=http://localhost:3000,https://xk.blackone.pro
 ADMIN_TOKEN=change_me
 YOOKASSA_API_URL=https://api.yookassa.ru/v3
 YOOKASSA_SHOP_ID=
@@ -38,6 +38,10 @@ LIVES_MAX=10
 `Authorization: Bearer <token>` on webhook endpoint only when this variable is set.
 For direct Yookassa webhooks, keep it empty unless you deliver webhooks through your
 own proxy that can add this header.
+
+`CORS_ORIGIN` accepts a comma-separated list. For example, keep both
+`http://localhost:3000` and `https://xk.blackone.pro` if local frontend and production
+frontend should both call the same backend with cookies.
 
 ## Docker
 
