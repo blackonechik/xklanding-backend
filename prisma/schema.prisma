@@ -113,3 +113,65 @@ model BankTransfer {
   @@index([toCardId])
   @@map("bank_transfers")
 }
+
+model PlayerProfile {
+  nickname   String   @id @db.VarChar(16)
+  animation  String   @default("inspect") @db.VarChar(16)
+  background String   @default("default") @db.VarChar(16)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("player_profiles")
+}
+
+model PlayTimePlayer {
+  uuid               String                @id @db.VarChar(36)
+  nickname           String                @unique @db.VarChar(36)
+  playtime           BigInt
+  artificialPlaytime BigInt                @map("artificial_playtime")
+  afkPlaytime        BigInt                @map("afk_playtime")
+  lastSeen           BigInt?               @map("last_seen")
+  firstJoin          BigInt?               @map("first_join")
+  relativeJoinStreak Int                   @default(0) @map("relative_join_streak")
+  absoluteJoinStreak Int                   @default(0) @map("absolute_join_streak")
+  dailyActivity      PlayerDailyActivity[]
+  onlineStatus       PlayerOnlineStatus?
+
+  @@map("play_time")
+}
+
+model PlayerDailyActivity {
+  userUuid      String         @map("user_uuid") @db.VarChar(36)
+  nickname      String         @db.VarChar(36)
+  activityDate  DateTime       @map("activity_date") @db.Date
+  playedSeconds BigInt         @default(0) @map("played_seconds")
+  updatedAt     DateTime       @default(now()) @map("updated_at") @db.Timestamptz(6)
+  player        PlayTimePlayer @relation(fields: [userUuid], references: [uuid], onDelete: Cascade)
+
+  @@id([userUuid, activityDate])
+  @@index([nickname, activityDate], map: "idx_player_daily_activity_nickname_date")
+  @@map("player_daily_activity")
+}
+
+model PlayerOnlineStatus {
+  userUuid  String         @id @map("user_uuid") @db.VarChar(36)
+  nickname  String         @db.VarChar(36)
+  online    Boolean        @default(false)
+  updatedAt DateTime       @default(now()) @map("updated_at") @db.Timestamptz(6)
+  player    PlayTimePlayer @relation(fields: [userUuid], references: [uuid], onDelete: Cascade)
+
+  @@index([nickname], map: "idx_player_online_status_nickname")
+  @@map("player_online_status")
+}
+
+model PlayerRating {
+  targetNickname String   @map("target_nickname") @db.VarChar(16)
+  voterNickname  String   @map("voter_nickname") @db.VarChar(16)
+  value          Int
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@id([targetNickname, voterNickname])
+  @@index([voterNickname])
+  @@map("player_ratings")
+}

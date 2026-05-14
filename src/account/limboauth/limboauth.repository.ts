@@ -36,6 +36,10 @@ function mapPlayer(row: LimboAuthPlayerRow): CabinetPlayer {
     registeredAt: fromMillis(row.regDate),
     lastLoginAt: fromMillis(row.loginDate),
     lives: row.lives ?? env.livesDefault,
+    appearance: {
+      animation: "inspect",
+      background: "default",
+    },
     social: {
       discordId: row.discordId,
       blocked: Boolean(row.blocked),

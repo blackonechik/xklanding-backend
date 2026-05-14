@@ -15,6 +15,13 @@ import {
   transferDiamonds,
 } from "./bank/bank.repository.js";
 import { findPlayerByNickname } from "./limboauth/limboauth.repository.js";
+import {
+  getPlayerAppearance,
+  getPublicPlayerProfile,
+  listPublicPlayers,
+  setPlayerRating,
+  updatePlayerAppearance,
+} from "./profile.repository.js";
 import { createFallbackSkinPng } from "./skin-restorer/fallback-skin.js";
 import {
   getMojangSkinTextureByNickname,
@@ -83,8 +90,70 @@ export function registerAccountRoutes(app: Hono) {
       return c.json({ error: "UNAUTHORIZED" }, 401);
     }
 
+    player.appearance = await getPlayerAppearance(player.lowercaseNickname);
     const bank = await getBankOverview(player.lowercaseNickname);
     return c.json({ player, bank });
+  });
+
+  app.patch("/api/account/profile/appearance", async (c) => {
+    const player = await getCurrentPlayer(c);
+    if (!player) {
+      return c.json({ error: "UNAUTHORIZED" }, 401);
+    }
+
+    const body = await c.req.json().catch(() => undefined);
+    const appearance = await updatePlayerAppearance(player.lowercaseNickname, {
+      animation: readString(body, "animation") as never,
+      background: readString(body, "background") as never,
+    });
+
+    return c.json({ appearance });
+  });
+
+  app.get("/api/players", async (c) => {
+    const currentPlayer = await getCurrentPlayer(c);
+    const rawLimit = Number(c.req.query("limit") ?? 60);
+    const limit = Number.isFinite(rawLimit)
+      ? Math.max(1, Math.min(100, Math.floor(rawLimit)))
+      : 60;
+
+    const players = await listPublicPlayers(limit, currentPlayer?.nickname);
+    return c.json({ players });
+  });
+
+  app.get("/api/players/:nickname", async (c) => {
+    const currentPlayer = await getCurrentPlayer(c);
+    const player = await getPublicPlayerProfile(
+      c.req.param("nickname"),
+      currentPlayer?.nickname,
+    );
+    if (!player) {
+      return c.json({ error: "PLAYER_NOT_FOUND" }, 404);
+    }
+
+    return c.json({ player });
+  });
+
+  app.post("/api/players/:nickname/rating", async (c) => {
+    const currentPlayer = await getCurrentPlayer(c);
+    if (!currentPlayer) {
+      return c.json({ error: "UNAUTHORIZED" }, 401);
+    }
+
+    const body = await c.req.json().catch(() => undefined);
+    const rawValue = Number(readString(body, "value") ?? (body as { value?: unknown } | undefined)?.value);
+    const value = rawValue === 1 || rawValue === -1 ? rawValue : 0;
+    const result = await setPlayerRating(
+      c.req.param("nickname"),
+      currentPlayer.nickname,
+      value,
+    );
+
+    if (!result.ok) {
+      return c.json({ error: result.error }, result.error === "PLAYER_NOT_FOUND" ? 404 : 400);
+    }
+
+    return c.json({ player: result.player });
   });
 
   app.get("/api/account/skins/:identifier", async (c) => {
