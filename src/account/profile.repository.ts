@@ -8,11 +8,31 @@ import type {
 
 const defaultAppearance: PlayerProfileAppearance = {
   animation: "inspect",
-  background: "default",
+  background: "palette-slate",
 };
 
-const allowedAnimations = new Set(["idle", "inspect", "wave"]);
-const allowedBackgrounds = new Set(["default", "emerald", "violet", "amber"]);
+const allowedAnimations = new Set([
+  "idle",
+  "inspect",
+  "wave",
+  "walk",
+  "run",
+  "fly",
+  "crouch",
+  "hit",
+]);
+const allowedBackgrounds = new Set([
+  "palette-slate",
+  "palette-emerald",
+  "palette-amber",
+  "palette-rose",
+  "palette-violet",
+  "palette-sky",
+  "palette-zinc",
+  "plains",
+  "nether",
+  "end",
+]);
 
 type PlayTimeRow = {
   uuid: string;
@@ -20,6 +40,9 @@ type PlayTimeRow = {
   playtime: bigint | number;
   artificial_playtime: bigint | number;
   afk_playtime: bigint | number;
+  month_seconds?: bigint | number | null;
+  week_seconds?: bigint | number | null;
+  today_seconds?: bigint | number | null;
   last_seen: bigint | number | null;
   lives: number | null;
   animation: string | null;
@@ -138,6 +161,9 @@ export async function listPublicPlayers(
       pt.playtime,
       pt.artificial_playtime,
       pt.afk_playtime,
+      coalesce(activity.month_seconds, 0)::bigint as month_seconds,
+      coalesce(activity.week_seconds, 0)::bigint as week_seconds,
+      coalesce(activity.today_seconds, 0)::bigint as today_seconds,
       pt.last_seen,
       lives.lives::int as lives,
       pp.animation,
@@ -150,6 +176,14 @@ export async function listPublicPlayers(
     left join limited_lives_players lives on lower(lives.player_name) = lower(pt.nickname)
     left join player_profiles pp on pp.nickname = lower(pt.nickname)
     left join player_online_status pos on pos.user_uuid = pt.uuid
+    left join lateral (
+      select
+        sum(pda.played_seconds) filter (where pda.activity_date >= current_date - interval '30 days') as month_seconds,
+        sum(pda.played_seconds) filter (where pda.activity_date >= current_date - interval '7 days') as week_seconds,
+        sum(pda.played_seconds) filter (where pda.activity_date = current_date) as today_seconds
+      from player_daily_activity pda
+      where pda.user_uuid = pt.uuid
+    ) activity on true
     left join lateral (
       select
         count(*) filter (where value = 1) as likes,
@@ -176,9 +210,9 @@ export async function listPublicPlayers(
       isOnline: Boolean(row.online),
       stats: {
         totalHours,
-        monthHours: 0,
-        weekHours: 0,
-        todayHours: 0,
+        monthHours: toHours(toNumber(row.month_seconds)),
+        weekHours: toHours(toNumber(row.week_seconds)),
+        todayHours: toHours(toNumber(row.today_seconds)),
       },
       activity: [],
       appearance: normalizeAppearance(row.animation, row.background),

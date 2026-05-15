@@ -38,7 +38,7 @@ function mapPlayer(row: LimboAuthPlayerRow): CabinetPlayer {
     lives: row.lives ?? env.livesDefault,
     appearance: {
       animation: "inspect",
-      background: "default",
+      background: "palette-slate",
     },
     social: {
       discordId: row.discordId,

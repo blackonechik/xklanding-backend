@@ -16,8 +16,18 @@ export type CabinetPlayer = {
 };
 
 export type PlayerProfileAppearance = {
-  animation: "idle" | "inspect" | "wave";
-  background: "default" | "emerald" | "violet" | "amber";
+  animation: "idle" | "inspect" | "wave" | "walk" | "run" | "fly" | "crouch" | "hit";
+  background:
+    | "palette-slate"
+    | "palette-emerald"
+    | "palette-amber"
+    | "palette-rose"
+    | "palette-violet"
+    | "palette-sky"
+    | "palette-zinc"
+    | "plains"
+    | "nether"
+    | "end";
 };
 
 export type PublicPlayerProfile = {
